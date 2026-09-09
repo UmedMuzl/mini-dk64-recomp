@@ -1,0 +1,16 @@
+[manifest]
+id = "mini-dk64"
+version = "1.0.0"
+display_name = "DK64 but you grow in size the more bananas you have"
+description = "The more bananas you have for a level, the bigger the kong"
+short_description = "The more bananas you have for a level, the bigger the kong"
+authors = [ "Ballaam", "Umed" ]
+game_id = "dk64"
+minimum_recomp_version = "1.0.0"
+
+[inputs]
+elf_path = "build/mod.elf"
+mod_filename = "mini-dk64"
+func_reference_syms_file = "Dk64Syms/dump.toml"
+data_reference_syms_files = [ "Dk64Syms/data_dump.toml" ]
+additional_files = ["thumb.dds"]
