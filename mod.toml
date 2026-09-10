@@ -1,5 +1,5 @@
 [manifest]
-id = "mini-dk64"
+id = "mini_dk64"
 version = "1.0.0"
 display_name = "DK64 but you grow in size the more bananas you have"
 description = "The more bananas you have for a level, the bigger the kong"

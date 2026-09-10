@@ -58,6 +58,23 @@ typedef struct blocker_cheat {
 } BLockerCheat;
 
 
+typedef struct Struct807FD610 {
+    s32 unk0; // Timer that ticks up once per frame
+    f32 unk4; // Probably float
+    f32 unk8; // Probably float
+    f32 unkC; // Probably float
+    f32 unk10[4];
+    s16 unk20[4];
+    s16 unk28; // Used
+    u16 unk2A; // Used, controller button bitfield
+    u16 unk2C; // Used, controller button bitfield
+    s8 unk2E; // Used
+    s8 unk2F; // Used
+    u8 unk30; // Used
+    u8 unk31;
+    s16 unk32;
+} Struct807FD610;
+
 typedef struct DelayedCSData DelayedCSData;
 struct DelayedCSData {
     DelayedCSData *next;                    // 0x00
@@ -80,12 +97,18 @@ extern PlayerProgress D_global_asm_807FC950[4]; // MovesBase + CollectableBase
 extern u16 D_global_asm_807446C0[8];            // BossReqArray CBs to open each boss door
 extern s16 D_global_asm_807446D0[8];            // BLockerArray GBs for each B. Locker
 extern BLockerCheat D_global_asm_807446E0[8];   // BLockerCheatArray B. Locker cheat requirements
+extern CharacterProgress *D_global_asm_807FD568; // current kong's progress
+extern u8 current_character_index[];
+extern u8 cc_player_index;
+extern Actor *gCurrentActorPointer;
+extern PlayerAdditionalActorData *extra_player_info_pointer;
+extern Struct807FD610 D_global_asm_807FD610[];  // per-player input state
 extern DelayedCSData *D_global_asm_807452A0;    // delayed cutscene action list head
 extern u32 D_global_asm_8076A068;               // frame counter
 
-extern u8 getLevelIndex(u8 map, u8 lobby_is_isles);           // hack: getWorld  (0x805FF030)
-extern u8 isFlagSet(s16 flagIndex, u8 flagType);              // hack: checkFlag (0x8073110C)
-extern void setFlag(s16 flagIndex, u8 newValue, u8 flagType); // hack: setFlag   (0x8073129C)
+extern u8 getLevelIndex(u8 map, u8 lobby_is_isles);           // getWorld  (0x805FF030)
+extern u8 isFlagSet(s16 flagIndex, u8 flagType);              // checkFlag (0x8073110C)
+extern void setFlag(s16 flagIndex, u8 newValue, u8 flagType); // setFlag   (0x8073129C)
 extern void _free(void *ptr);                                 // game heap free  (0x8061130C)
 
 // perm flags
@@ -167,28 +190,6 @@ static void mini_dk64_frame(void) {
     story_skip = 1;
 
     if ((current_map == MAP_MAIN_MENU) && (next_map != MAP_MAIN_MENU) && (game_mode == GAME_MODE_ADVENTURE)) {
-        if (!isFlagSet(file_init_flags[0], FLAG_TYPE_PERMANENT)) {
-            for (s32 i = 0; i < ARRAY_COUNT(file_init_flags); i++) {
-                setFlag(file_init_flags[i], 1, FLAG_TYPE_PERMANENT);
-            }
-            #if VERSION == 0
-                for (s32 i = 0; i < 5; i++) {
-                    progress->character_progress[i].simian_slam = 1;
-                    progress->character_progress[i].moves = 3;           // special_moves
-                    progress->character_progress[i].instrument = 1;      // instrument_bitfield
-                    progress->character_progress[i].weapon = 1;          // weapon_bitfield
-                    progress->character_progress[i].instrument_ammo = 5; // instrument_energy
-                }
-                progress->melons = 2;
-                progress->health = 8;
-                progress->standardAmmo = 50;
-                setFlag(771, 1, FLAG_TYPE_PERMANENT); // Open Coin Door
-            #else
-                for (s32 i = 0; i < 5; i++) {
-                    progress->character_progress[i].simian_slam = 1;
-                }
-            #endif
-        }
         next_map = MAP_DK_ISLES_OVERWORLD;
         next_exit = 0;
     }
@@ -226,6 +227,53 @@ static void mini_dk64_frame(void) {
     }
 }
 
+RECOMP_CALLBACK("*", recomp_on_new_file_start) void mini_dk64_on_new_file(void) {
+    PlayerProgress *progress = &D_global_asm_807FC950[0];
+
+    for (s32 i = 0; i < ARRAY_COUNT(file_init_flags); i++) {
+        setFlag(file_init_flags[i], 1, FLAG_TYPE_PERMANENT);
+    }
+    #if VERSION == 0
+        for (s32 i = 0; i < 5; i++) {
+            progress->character_progress[i].simian_slam = 1;
+            progress->character_progress[i].moves = 3;           // special_moves
+            progress->character_progress[i].instrument = 1;      // instrument_bitfield
+            progress->character_progress[i].weapon = 1;          // weapon_bitfield
+            progress->character_progress[i].instrument_ammo = 5; // instrument_energy
+        }
+        progress->melons = 2;
+        progress->health = 8;
+        progress->standardAmmo = 50;
+        setFlag(771, 1, FLAG_TYPE_PERMANENT); // Open Coin Door
+    #else
+        for (s32 i = 0; i < 5; i++) {
+            progress->character_progress[i].simian_slam = 1;
+        }
+    #endif
+}
+
+// Slam has a set height limit activation at 10 units. This tries and scales the activation limit to your size
+RECOMP_PATCH int func_global_asm_806E5C74(void) {
+    f32 temp_f2;
+    f32 phi_f0;
+    f32 size;
+
+    phi_f0 = gCurrentActorPointer->distance_from_floor;
+    if (gCurrentActorPointer->unk6A & 2) {
+        temp_f2 = gCurrentActorPointer->y_position - gCurrentActorPointer->unkAC;
+        if (!(phi_f0 < temp_f2)) {
+            phi_f0 = temp_f2;
+        }
+    }
+    size = extra_player_info_pointer->unk1CC;
+    if (gCurrentActorPointer->animation_state) {
+        size = gCurrentActorPointer->animation_state->scale_y;
+    }
+    return D_global_asm_807FD610[cc_player_index].unk2C & Z_TRIG
+        && size * 66.0f < phi_f0
+        && current_character_index[cc_player_index] != 6
+        && D_global_asm_807FD568->simian_slam != 0;
+}
 
 RECOMP_PATCH void func_global_asm_80600B10(void) {
     s32 var_s1;
